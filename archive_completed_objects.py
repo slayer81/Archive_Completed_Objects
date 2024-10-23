@@ -7,7 +7,19 @@ import pathlib
 import shutil
 import humanize as hm
 import transmission_rpc as t_rpc
-# from pyparsing import empty
+
+
+#############################################################################################################
+def load_shell_environment(profile_path="/Users/scott/.bash_profile"):
+    # Use subprocess to source the shell profile and print the environment variables
+    command = f"source {profile_path} && env"
+    proc = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True, executable="/usr/local/bin/bash")
+    for line in proc.stdout:
+        (key, _, value) = line.decode("utf-8").partition("=")
+        os.environ[key] = value.strip()
+#############################################################################################################
+
+load_shell_environment()
 
 # Global variables
 START_TIME = dt.datetime.now()
@@ -131,7 +143,8 @@ def has_rar(obj_full_path):
         results_dict['result'] = scrubber_dict['result']
         results_dict['response'] = scrubber_dict['response']
 
-        if scrubber_dict['result'] != 'failed':
+#         if scrubber_dict['result'] != 'failed':
+        if scrubber_dict['result'] not in ['warning', 'failed', 'missing']:
             results_dict['continue'] = True
         return results_dict
 
@@ -166,17 +179,6 @@ def instance_check(paths_dict, obj_full_path):
             print_string('{:4}{:<24}{:<60}'.format('', 'Archiving response:', process_object_dict['response']))
             return 'failed'
         return 'success'
-#############################################################################################################
-
-
-#############################################################################################################
-def load_shell_environment(profile_path="/Users/scott/.bash_profile"):
-    # Use subprocess to source the shell profile and print the environment variables
-    command = f"source {profile_path} && env"
-    proc = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True, executable="/usr/local/bin/bash")
-    for line in proc.stdout:
-        (key, _, value) = line.decode("utf-8").partition("=")
-        os.environ[key] = value.strip()
 #############################################################################################################
 
 
@@ -326,6 +328,39 @@ def list_files_from_rar(archive_path):
     rar_filename = ''.join(rar_filename)
     rar_file_full_path = os.path.join(archive_path, rar_filename)
     extract_cmd = f'{rar_cmd} "{rar_file_full_path}" | {grep_cmd} | awk {awk_switch}'
+
+    result = subprocess.run(
+        extract_cmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    ).stdout.decode('utf-8').split('\n')[0].strip()
+
+#     if not result_list:
+    if not result:
+        print_string('{:4}{:<24}{:<60}'.format('', 'Extraction result:', 'Nothing extracted'))
+        return file_list
+
+    return result
+#############################################################################################################
+
+
+#############################################################################################################
+def list_files_from_rar2(archive_path):
+    file_list = []
+    rar_cmd = '7z l'
+    grep_regex = '\'[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} +..... +[0-9]+ +[0-9]+ +.+$\''
+    grep_cmd = f'grep -Eo {grep_regex}'
+    awk_switch = '\'{for (i=6; i<=NF; i++) printf $i " "; print ""}\''
+
+    objects = os.listdir(archive_path)
+    rar_filename = [o for o in objects if o.endswith('.rar')]
+
+    if not rar_filename:
+        # No rar file exists
+        return file_list
+
+    # Extract uncompressed filename(s) using 7zip, excluding all the "noise"
+    rar_filename = ''.join(rar_filename)
+    rar_file_full_path = os.path.join(archive_path, rar_filename)
+    extract_cmd = f'{rar_cmd} "{rar_file_full_path}" | {grep_cmd} | awk {awk_switch}'
     result_list = subprocess.run(
         extract_cmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
     ).stdout.decode('utf-8').split('\n')
@@ -345,7 +380,9 @@ def list_files_from_rar(archive_path):
     result_list = [x.strip(' ') for x in result_list]
 
     # Remove "files" value from results
-    result_list.remove('files')
+    not_needed = 'files'
+#     result_list.remove('files')
+    result_list.remove(not_needed)
 
     if len(result_list) == 1:
         results = ''.join(result_list)
@@ -366,7 +403,7 @@ def scrub_directory(obj_full_path):
         scrubber_result_dict = {
             'scrub_file': target_file,
             'result': 'warning',
-            'response': 'Found more than one video file. Skipping ...'
+            'response': 'Found more than one video file or failed scrubbing. Skipping ...'
         }
         return scrubber_result_dict
 
@@ -403,7 +440,6 @@ def scrub_directory(obj_full_path):
 #############################################################################################################
 def main():
     # Setup environment
-    load_shell_environment()
     paths_dict = {
         'source_dir': os.path.join(SOURCE_VOLUME, 'zzzNew'),
         'archive_dir': os.path.join(ARCHIVE_VOLUME, 'Media_Archive'),
@@ -417,7 +453,7 @@ def main():
     print(f'\n{MARKER_CHAR * 140}')
     print(f'{MARKER_CHAR * 140}')
     print_string('{:<23}{:<60}'.format('Starting execution of', __file__))
-    print_string(f'{MARKER_CHAR * 111}')
+    print_string(f'{MARKER_CHAR * 107}')
     # Environment ready
 
     # # Logging Parameters
@@ -461,7 +497,7 @@ def main():
     print_string('{:<26}  {:<60}'.format('Total objects to process:', len(action_list)))
     if not action_list:
         # This is the end
-        print_string('{:<28}"{:<60}"'.format('Nothing to be done here   ...Exiting...', ''))
+        print_string('{:<28}{:<60}'.format('Nothing to be done here     ...Exiting...', ''))
         print(f'{MARKER_CHAR * 140}')
         print_string(f'Execution completed. Total runtime:\t {hm.precisedelta(dt.datetime.now() - START_TIME)}')
         print(f'{MARKER_CHAR * 140}')
@@ -531,7 +567,8 @@ def main():
             # If rar file in dir, scrub unpacked file
             process_dir_dict = has_rar(obj_full_path)
 
-            if not process_dir_dict['continue'] and process_dir_dict['result'] == 'failed':
+#             if not process_dir_dict['continue'] and process_dir_dict['result'] == 'failed':
+            if not process_dir_dict['continue']:
                 print_string('{:4}{:<24}{:<60}'.format('', 'Scrubbing result:', f"{process_dir_dict['response']}"))
                 print_string(f'Object processing time:\t {hm.precisedelta(dt.datetime.now() - iter_start)}')
                 failed_items_list.append([obj_dtype, a])
