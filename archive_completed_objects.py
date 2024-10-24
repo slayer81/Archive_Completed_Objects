@@ -335,7 +335,7 @@ def list_files_from_rar(archive_path):
 #     if not result_list:
     if not result:
         print_string('{:4}{:<24}{:<60}'.format('', 'Extraction result:', 'Nothing extracted'))
-        return file_list
+        # return file_list
 
     return result
 #############################################################################################################
