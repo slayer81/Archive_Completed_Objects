@@ -10,12 +10,16 @@ Instead of using cron, I use LaunchControl for scheduling various processes. Unf
 
 The overall flow of this is:
 
-    Load profile
-    Poll Transmission API for active objects
-    Get object list from Transmission download location
-    De-dupe the two, leaving just items to archive
-    Classify each item in the actioning list (this wasn't really needed, but I wanted to make this usable in the future)
-    For each actionable item:
-
-    symbolic link: unlink it
-    files / directories: first checking if it already exists (to account for any previous uncompleted events). If a version exists, check the quality (total object size). If the active object is larger, overwrite. If not, move to the "Graveyard" for verification. Otherwise, move to the Archive path
+  -  Load profile
+  -  Poll Transmission API for active objects
+  -  Get object list from Transmission download location
+  -  De-dupe the two, leaving just items to archive
+  -  Classify each item in the actioning list (this wasn't really needed, but I wanted to make this usable in the future)
+    -  For each actionable item:
+      - symbolic link: unlink it
+      - files / directories: 
+        - first checking if it already exists (to account for any previous uncompleted events). 
+        - If a version exists, check the quality (total object size). 
+        - If the active object is larger, overwrite. 
+        - If not, move to the "Graveyard" for verification. 
+        - Otherwise, move to the Archive path
