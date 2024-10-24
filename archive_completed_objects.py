@@ -143,7 +143,6 @@ def has_rar(obj_full_path):
         results_dict['result'] = scrubber_dict['result']
         results_dict['response'] = scrubber_dict['response']
 
-#         if scrubber_dict['result'] != 'failed':
         if scrubber_dict['result'] not in ['warning', 'failed', 'missing']:
             results_dict['continue'] = True
         return results_dict
@@ -343,57 +342,6 @@ def list_files_from_rar(archive_path):
 
 
 #############################################################################################################
-def list_files_from_rar2(archive_path):
-    file_list = []
-    rar_cmd = '7z l'
-    grep_regex = '\'[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} +..... +[0-9]+ +[0-9]+ +.+$\''
-    grep_cmd = f'grep -Eo {grep_regex}'
-    awk_switch = '\'{for (i=6; i<=NF; i++) printf $i " "; print ""}\''
-
-    objects = os.listdir(archive_path)
-    rar_filename = [o for o in objects if o.endswith('.rar')]
-
-    if not rar_filename:
-        # No rar file exists
-        return file_list
-
-    # Extract uncompressed filename(s) using 7zip, excluding all the "noise"
-    rar_filename = ''.join(rar_filename)
-    rar_file_full_path = os.path.join(archive_path, rar_filename)
-    extract_cmd = f'{rar_cmd} "{rar_file_full_path}" | {grep_cmd} | awk {awk_switch}'
-    result_list = subprocess.run(
-        extract_cmd, shell=True, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    ).stdout.decode('utf-8').split('\n')
-
-    if not result_list:
-        print_string('{:<28}{:<60}'.format('Extraction result:', 'Nothing extracted'))
-        return file_list
-
-    # Clean results
-    # Remove any empty list values
-    result_list = list(filter(None, result_list))
-
-    # Remove any duplicate list items
-    result_list = list(dict.fromkeys(result_list))
-
-    # Trim all leading and trailing whitespace from list items
-    result_list = [x.strip(' ') for x in result_list]
-
-    # Remove "files" value from results
-    not_needed = 'files'
-#     result_list.remove('files')
-    result_list.remove(not_needed)
-
-    if len(result_list) == 1:
-        results = ''.join(result_list)
-        return results
-    else:
-        # Check returned value for type. Success returns string. Failure returns list
-        return result_list
-#############################################################################################################
-
-
-#############################################################################################################
 def scrub_directory(obj_full_path):
     # Get name of unpacked file
     target_file = list_files_from_rar(obj_full_path)
@@ -456,15 +404,6 @@ def main():
     print_string(f'{MARKER_CHAR * 107}')
     # Environment ready
 
-    # # Logging Parameters
-    # version_major = 1
-    # log_dir = f'Logs/archive_inactive_objects/v{version_major}'
-    # log_dir_path = os.path.join(USER_VOLUME, log_dir)
-    # logfile_path = os.path.join(log_dir_path, f'{TODAY_DATESTAMP}.log')
-    # #
-    # # Log Directory Validation
-    # #
-
     # Modify filesystem paths if env == dev
     if '__DEV' in str(p.parent):
         paths_dict = execution_env_is_dev(paths_dict)
@@ -474,6 +413,7 @@ def main():
     # This is the start
     ####################################################################################################################
     stage_num = 1
+
     #
     # Stage description: Collect active Transmission objects
     ####################################################################################################################
@@ -513,7 +453,7 @@ def main():
     stage_num += 1
 
     #
-    # Stage description: Loop over action_list, processing each object
+    # Stage description: Loop over action_list, processing each object, by classification type
     ####################################################################################################################
     num_count = len(action_list)
     counter = 1
@@ -523,11 +463,11 @@ def main():
         print_string(f'{MARKER_CHAR * 100}')
         iter_start = dt.datetime.now()
         obj_full_path = os.path.join(paths_dict['source_dir'], a)
-        # obj_archive_full_path = os.path.join(paths_dict['archive_dir'], a)
 
         print_string('{:<12}{:<60}'.format(f'Object ({counter} / {num_count}):\t ', a))
         print_string(f'{MARKER_CHAR * 100}')
 
+        # List 'symlinks'
         ################################################################################################################
         if a in symlinks:
             obj_dtype = 'symlink'
@@ -567,7 +507,6 @@ def main():
             # If rar file in dir, scrub unpacked file
             process_dir_dict = has_rar(obj_full_path)
 
-#             if not process_dir_dict['continue'] and process_dir_dict['result'] == 'failed':
             if not process_dir_dict['continue']:
                 print_string('{:4}{:<24}{:<60}'.format('', 'Scrubbing result:', f"{process_dir_dict['response']}"))
                 print_string(f'Object processing time:\t {hm.precisedelta(dt.datetime.now() - iter_start)}')
@@ -587,6 +526,7 @@ def main():
             print_string(f'Object processing time:\t {hm.precisedelta(dt.datetime.now() - iter_start)}')
             counter += 1
     stage_num += 1
+
     ####################################################################################################################
     # This is the end
     print(f'{MARKER_CHAR * 140}')
@@ -603,5 +543,6 @@ def main():
 ########################################################################################################################
 
 
+########################################################################################################################
 if __name__ == "__main__":
     main()
